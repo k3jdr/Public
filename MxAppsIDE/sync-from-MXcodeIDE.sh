@@ -2,13 +2,14 @@
 # Copies the apps published here from MXcodeIDE: what's committed there (not work in progress), as real folders —
 # git keeps a symbolic link as just its target's path, so a link to MXcodeIDE would show up on GitHub as one line.
 #
-#   ./sync-from-MXcodeIDE.sh            then commit and push as usual
-#   MXCODEIDE=/path/to/MXcodeIDE ./sync-from-MXcodeIDE.sh
+#   MxAppsIDE/sync-from-MXcodeIDE.sh    then commit and push as usual
+#   MXCODEIDE=/path/to/MXcodeIDE MxAppsIDE/sync-from-MXcodeIDE.sh
 set -euo pipefail
 
 SRC=${MXCODEIDE:-$HOME/MyCodeGIT/MXcodeIDE}
-DEST=${0:A:h}/MxAppsIDE
-FOLDERS=(MxNoteONE MxDataSQL Shared)
+# This folder: the apps' Xcode projects find Shared beside them, as in MXcodeIDE.
+DEST=${0:A:h}
+FOLDERS=(MxNoteONE MxDataSQL MxDataHUB MxFileMGR MxJobsWMS MxPortMGR Shared)
 
 git -C "$SRC" rev-parse --git-dir >/dev/null
 if [[ -n $(git -C "$SRC" status --porcelain -- $FOLDERS) ]]; then
@@ -19,7 +20,6 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 git -C "$SRC" archive --format=tar HEAD -- $FOLDERS | tar -x -C "$tmp"
 
-mkdir -p "$DEST"
 for folder in $FOLDERS; do
   # A link left from before is replaced by the folder.
   [[ -L $DEST/$folder ]] && rm "$DEST/$folder"
