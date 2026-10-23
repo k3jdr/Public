@@ -1,19 +1,19 @@
 #!/bin/zsh
-# Copies the apps published here from MXcodeIDE: what's committed there (not work in progress), as real folders —
-# git keeps a symbolic link as just its target's path, so a link to MXcodeIDE would show up on GitHub as one line.
+# Copies the apps published here from MxAppsIOS: what's committed there (not work in progress), as real folders —
+# git keeps a symbolic link as just its target's path, so a link to MxAppsIOS would show up on GitHub as one line.
 #
-#   MxAppsIDE/sync-from-MXcodeIDE.sh    then commit and push as usual
-#   MXCODEIDE=/path/to/MXcodeIDE MxAppsIDE/sync-from-MXcodeIDE.sh
+#   MxAppsIDE/sync-from-MxAppsIOS.sh    then commit and push as usual
+#   MXAPPSIOS=/path/to/MxAppsIOS MxAppsIDE/sync-from-MxAppsIOS.sh
 set -euo pipefail
 
-SRC=${MXCODEIDE:-$HOME/MyCodeGIT/MXcodeIDE}
-# This folder: the apps' Xcode projects find Shared beside them, as in MXcodeIDE.
+SRC=${MXAPPSIOS:-$HOME/MyCodeGIT/MxAppsIOS}
+# This folder: the apps' Xcode projects find Shared beside them, as in MxAppsIOS.
 DEST=${0:A:h}
 FOLDERS=(MxNoteONE MxDataSQL MxDataHUB MxFileMGR MxJobsWMS MxPortMGR Shared)
 
 git -C "$SRC" rev-parse --git-dir >/dev/null
 if [[ -n $(git -C "$SRC" status --porcelain -- $FOLDERS) ]]; then
-  echo "note: MXcodeIDE has uncommitted changes in these folders; they're left out" >&2
+  echo "note: MxAppsIOS has uncommitted changes in these folders; they're left out" >&2
 fi
 
 tmp=$(mktemp -d)
@@ -28,4 +28,4 @@ for folder in $FOLDERS; do
     "$tmp/$folder/" "$DEST/$folder/"
 done
 
-echo "MxAppsIDE now matches MXcodeIDE $(git -C "$SRC" rev-parse --short HEAD) ($FOLDERS)"
+echo "MxAppsIDE now matches MxAppsIOS $(git -C "$SRC" rev-parse --short HEAD) ($FOLDERS)"
