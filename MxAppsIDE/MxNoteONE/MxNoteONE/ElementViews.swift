@@ -485,6 +485,8 @@ final class TextElementView: ElementView, NSTextViewDelegate {
         configureTextView()
         if let data = element.rtfd, let text = NoteRichText.text(data) {
             textView.textStorage?.setAttributedString(text)
+            // Wrapped list items line up under their text (notes saved before this was done, too).
+            if let storage = textView.textStorage { ListIndent.apply(storage) }
         }
         addSubview(textView)
         finishSetup()
@@ -496,6 +498,7 @@ final class TextElementView: ElementView, NSTextViewDelegate {
 
     private func configureTextView() {
         let tv = textView
+        tv.textContainer?.replaceLayoutManager(NoteLayoutManager())
         tv.owner = self
         tv.delegate = self
         tv.frame = NSRect(x: 0, y: Self.gripHeight, width: frame.width, height: 24)
@@ -615,6 +618,7 @@ final class TextElementView: ElementView, NSTextViewDelegate {
 
     func textDidChange(_ notification: Notification) {
         CodeHighlighter.recolor(textView)
+        if let storage = textView.textStorage { ListIndent.apply(storage) }
         controller?.textChanged()
         TextFormatter.convertWikiLink(in: textView)
     }
@@ -632,7 +636,13 @@ final class TextElementView: ElementView, NSTextViewDelegate {
     func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         switch commandSelector {
         case #selector(NSResponder.insertNewline(_:)):
+            // Shift-Return (which has no key binding of its own) breaks the line inside the paragraph.
+            if let event = NSApp.currentEvent, event.type == .keyDown, event.modifierFlags.contains(.shift) {
+                return TextFormatter.handleLineBreak(textView)
+            }
             return TextFormatter.handleNewline(textView)
+        case #selector(NSResponder.insertLineBreak(_:)):
+            return TextFormatter.handleLineBreak(textView)
         case #selector(NSResponder.deleteBackward(_:)):
             return TextFormatter.handleBackspace(textView)
         case #selector(NSResponder.moveUp(_:)):
@@ -689,6 +699,8 @@ final class TextElementView: ElementView, NSTextViewDelegate {
             ImportActivity.shared.locateMissingPictures()
             return true
         }
+        // A time in a video's transcript or recap: play the video from there.
+        if let url, VideoTranscriptText.follow(url) { return true }
         // Web links: the browser chosen in Settings.
         if let url, WebBrowser.isWeb(url) {
             WebBrowser.open(url)

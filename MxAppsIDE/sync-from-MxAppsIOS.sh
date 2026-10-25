@@ -9,7 +9,7 @@ set -euo pipefail
 SRC=${MXAPPSIOS:-$HOME/MyCodeGIT/MxAppsIOS}
 # This folder: the apps' Xcode projects find Shared beside them, as in MxAppsIOS.
 DEST=${0:A:h}
-FOLDERS=(MxNoteONE MxDataSQL MxDataHUB MxFileMGR MxJobsWMS MxPortMGR Shared)
+FOLDERS=(MxNoteONE MxDataSQL MxDataHUB MxFileMGR MxJobsMGR MxAcctMGR Shared)
 
 git -C "$SRC" rev-parse --git-dir >/dev/null
 if [[ -n $(git -C "$SRC" status --porcelain -- $FOLDERS) ]]; then

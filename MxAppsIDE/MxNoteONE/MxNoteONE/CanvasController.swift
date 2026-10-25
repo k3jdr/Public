@@ -11,6 +11,7 @@
 //
 
 import AppKit
+import AVFoundation
 import UniformTypeIdentifiers
 
 /// An element on the pasteboard, with its picture or file data.
@@ -678,6 +679,82 @@ final class CanvasController: NSObject {
         addElement(element)
     }
 
+    /// A text box for a video's transcript or recap: beside the video when there's room on its right, else under it
+    /// (below whatever is already there).
+    @discardableResult
+    func addText(near view: ElementView, _ text: NSAttributedString, beside: Bool = false) -> TextElementView? {
+        let others = canvas.elementViews.filter { $0 !== view }
+        var origin = NSPoint(x: view.frame.minX, y: view.frame.maxY + 14)
+        var width = max(view.frame.width, 420)
+        // Beside: as wide as the page shows (no sideways scrolling), at least 320.
+        let sideWidth = min(440, canvas.visibleRect.maxX - view.frame.maxX - 24 - 16)
+        let side = NSRect(x: view.frame.maxX + 24, y: view.frame.minY, width: sideWidth, height: max(view.frame.height, 300))
+        if beside, sideWidth >= 320, !others.contains(where: { $0.frame.intersects(side) }) {
+            origin = side.origin
+            width = side.width
+        } else {
+            var moved = true
+            while moved {
+                moved = false
+                let probe = NSRect(x: origin.x, y: origin.y, width: width, height: 40)
+                if let hit = others.first(where: { $0.frame.intersects(probe) }) {
+                    origin.y = hit.frame.maxY + 14
+                    moved = true
+                }
+            }
+        }
+        let box = createTextElement(at: NSPoint(x: origin.x + 8, y: origin.y + ElementView.gripHeight + 10), text: text, width: width)
+        if let box { canvas.selectedElement = box; canvas.scrollToVisible(box.frame) }
+        return box
+    }
+
+    /// A video file copied into the notebook and played on the page, with a poster frame and its proportions.
+    /// A video macOS can't decode (VP9, AV1) is converted to H.264 first (VideoConverter), with its progress in the
+    /// sidebar.
+    func insertVideo(_ url: URL, at point: NSPoint? = nil) {
+        guard let ref else { return }
+        let p = point ?? nextInsertionPoint()
+        Task {
+            guard await VideoConverter.canPlay(url) else { return await convertThenInsert(url, ref: ref, at: p) }
+            placeVideo(url, fileName: url.lastPathComponent, poster: await VideoConverter.posterAndSize(url), ref: ref, at: p)
+        }
+    }
+
+    private func convertThenInsert(_ url: URL, ref: PageRef, at p: NSPoint) async {
+        let name = url.lastPathComponent
+        let codec = await VideoConverter.codecName(url)
+        guard VideoConverter.ffmpeg != nil else {
+            return store.showAlert("Can't play this video", VideoConverter.noFFmpegMessage(name, codec: codec))
+        }
+        ImportActivity.shared.runTask("Converting \(name) for playback…") { activity in
+            do {
+                let converted = try await VideoConverter.convert(url) { done in
+                    activity.status = "Converting \(name) (\(codec)) for playback… \(Int(done * 100))%"
+                }
+                defer { try? FileManager.default.removeItem(at: converted.deletingLastPathComponent()) }
+                let poster = await VideoConverter.posterAndSize(converted)
+                self.placeVideo(converted, fileName: converted.lastPathComponent, poster: poster, ref: ref, at: p)
+            } catch {
+                self.store.showAlert("Couldn't convert the video", "“\(name)” is \(codec) video, which macOS can't play. \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func placeVideo(_ url: URL, fileName: String, poster: (poster: CGImage?, size: CGSize), ref: PageRef, at p: NSPoint) {
+        // The page may have changed meanwhile: the video goes where it was dropped or chosen.
+        guard self.ref == ref else { return NSSound.beep() }
+        guard let data = try? Data(contentsOf: url),
+              let name = store.writeAsset(data, ext: url.pathExtension, for: ref) else { return }
+        // At most 640 points on its longer side (a phone's portrait video isn't a page tall).
+        let size = poster.size
+        let width = max(VideoElementView.minimumWidth, size.width * min(1, 640 / max(size.width, size.height)))
+        var element = PageElement(kind: .video, x: p.x, y: p.y, width: width,
+                                  height: ElementView.gripHeight + (width * size.height / size.width).rounded() + VideoElementView.barHeight,
+                                  asset: name, fileName: fileName)
+        element.preview = poster.poster.flatMap(VideoElementView.jpeg).flatMap { store.writeAsset($0, ext: "jpg", for: ref) }
+        if let view = addElement(element) { canvas.selectedElement = view }
+    }
+
     /// Dropped or chosen files: pictures go on the page, other files become attachments.
     func insertFiles(_ urls: [URL], at point: NSPoint? = nil) {
         var p = point ?? nextInsertionPoint()
@@ -705,6 +782,12 @@ final class CanvasController: NSObject {
                 p.y = view.frame.maxY + 14
                 continue
             }
+            // Videos play on the page (they're put on it once their poster frame is ready).
+            if VideoElementView.isVideo(url) {
+                insertVideo(url, at: p)
+                p.y += 400
+                continue
+            }
             guard let data = try? Data(contentsOf: url) else { continue }
             let type = UTType(filenameExtension: url.pathExtension)
             if type?.conforms(to: .image) == true, NSImage(data: data) != nil {
@@ -722,6 +805,15 @@ final class CanvasController: NSObject {
         guard ref != nil else { return }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = true
+        guard panel.runModal() == .OK else { return }
+        insertFiles(panel.urls)
+    }
+
+    func chooseVideos() {
+        guard ref != nil else { return }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.movie]
         panel.allowsMultipleSelection = true
         guard panel.runModal() == .OK else { return }
         insertFiles(panel.urls)
@@ -785,6 +877,9 @@ final class CanvasController: NSObject {
         case .table:
             item.setString(element.table?.rows.map { $0.joined(separator: "\t") }.joined(separator: "\n") ?? "", forType: .string)
         case .file, .audio:
+            item.setString(element.fileName ?? "", forType: .string)
+        case .video:
+            if let tiff = (view as? VideoElementView)?.screen.poster?.tiffRepresentation { item.setData(tiff, forType: .tiff) }
             item.setString(element.fileName ?? "", forType: .string)
         case .chart:
             if let tiff = (view as? ChartElementView)?.image()?.tiffRepresentation { item.setData(tiff, forType: .tiff) }

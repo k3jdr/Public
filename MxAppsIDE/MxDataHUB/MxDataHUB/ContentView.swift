@@ -31,6 +31,9 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 screen
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // Every screen's text can be selected and copied, as in MxAcctMGR; tables select rows, which
+                    // ⌘C copies as tab-separated columns (TableCopy.swift).
+                    .textSelection(.enabled)
                 Divider()
                 StatusBar(store: store)
                     .quickHelpArea("Status", "The connection — server, database and PostgreSQL version, and whether it has the security master — and the last action's message.",
@@ -38,6 +41,7 @@ struct ContentView: View {
             }
             .navigationTitle(store.section.rawValue)
             .toolbar {
+                BackForwardButtons(store: store)
                 if store.isConnected {
                     ToolbarItem(placement: .primaryAction) { databasePicker }
                 }
@@ -50,8 +54,12 @@ struct ContentView: View {
         .frame(minWidth: 1280, minHeight: 720)
         .quickHelpScreen(store.section.rawValue, HubHelp.screen(store), selection: HubHelp.selection(store))
         .task { await start() }
+        // Each place visited joins the history (Back and Forward, Navigation.swift).
+        .onChange(of: store.place, initial: true) { store.recordPlace() }
         .onOpenURL { url in open(AppLink(url: url)) }
         .errorDialog("MxDataHUB", message: $store.errorMessage)
+        // Links on tickers and names (Shared/Links), as in MxNoteONE: ⌘K, a row's context menu, Edit Link… on a hover card.
+        .sheet(item: Binding(get: { SecurityLinks.shared.editing }, set: { SecurityLinks.shared.editing = $0 })) { SecurityLinkSheet(initial: $0) }
     }
 
     @ViewBuilder
@@ -87,7 +95,7 @@ struct ContentView: View {
         }
     }
 
-    /// mxdatahub:// links from MxJobsWMS (Shared/AppLinks.swift).
+    /// mxdatahub:// links from MxJobsMGR (Shared/AppLinks.swift).
     private func open(_ link: AppLink?) {
         switch link {
         case .portfolio(let code)?:
@@ -127,6 +135,7 @@ struct ContentView: View {
     /// `-autoConnect YES -section Portfolios -query AAPL` (connection fields: `-host`, `-port`,
     /// `-user`, `-database`, `-sslMode`). Debug builds also take the password from PGPASSWORD.
     private func start() async {
+        NavigationKeys.install(store)
         store.loadSavedPassword()
         #if DEBUG
         if store.password.isEmpty, let env = ProcessInfo.processInfo.environment["PGPASSWORD"] {
@@ -142,11 +151,21 @@ struct ContentView: View {
         if let name = defaults.string(forKey: "section"), let section = SRMSection(rawValue: name) {
             store.section = section
         }
+        #if DEBUG
+        // Self-test of the hover card: show a linked cell's card once the table is up (-linkHoverTest ID, e.g. YQ|symbol),
+        // as MxAcctMGR does.
+        if let id = defaults.string(forKey: "linkHoverTest") {
+            Task {
+                try? await Task.sleep(for: .seconds(6))
+                SecurityLinks.shared.testHover(id)
+            }
+        }
+        #endif
     }
 }
 
 extension View {
-    /// Gives a split-view column or pane a constant minimum size, as MxJobsWMS does: one taken from the content
+    /// Gives a split-view column or pane a constant minimum size, as MxJobsMGR does: one taken from the content
     /// (a console's longest line, a text that wraps) changes as the content does, and widened the window or made
     /// AppKit loop on updating constraints. Content that needs more is clipped on the right. Not for the detail
     /// column itself: there it made hiding the sidebar on Securities loop and abort.

@@ -24,12 +24,14 @@ def guess_security_type(name, is_etf=False):
     n = (name or "").lower()
     if is_etf:
         return "ETF"
+    # A unit's name lists what it holds ("Units, each consisting of one share and one-half of one warrant"): it is
+    # a unit, not the warrant or right it mentions.
+    if re.search(r"\bunits?\b", n):
+        return "Unit"
     if "warrant" in n:
         return "Warrant"
     if re.search(r"\brights?\b", n):
         return "Right"
-    if re.search(r"\bunits?\b", n):
-        return "Unit"
     if "american depositary" in n or " ads" in n or "adr" in n.split():
         return "ADR"
     if "preferred" in n or "depositary shares" in n or "pfd" in n:
@@ -175,11 +177,13 @@ def source_id(cur, code, cache={}):
 
 def benchmark_targets(cur):
     """Securities in any benchmark's latest snapshot or any portfolio: the set the per-symbol
-    (rate-limited) loaders work on. Returns [(security_id, ticker, mic)]."""
+    (rate-limited) loaders work on. Returns [(security_id, ticker, mic)]. The Vanguard funds' holdings benchmarks
+    (provider 'Vanguard', V036: tens of thousands of stocks and bonds) aren't targets."""
     cur.execute("""
         WITH t AS (
-            SELECT w.security_id FROM srm.benchmark_weight w
+            SELECT w.security_id FROM srm.benchmark_weight w JOIN srm.benchmark b USING (benchmark_id)
              WHERE w.as_of_date = (SELECT max(as_of_date) FROM srm.benchmark_weight x WHERE x.benchmark_id = w.benchmark_id)
+               AND b.provider IS DISTINCT FROM 'Vanguard'
             UNION SELECT security_id FROM srm.portfolio_holding
             UNION SELECT security_id FROM srm.portfolio_transaction WHERE security_id IS NOT NULL
         )

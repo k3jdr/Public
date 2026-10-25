@@ -39,6 +39,10 @@ def _number(text):
 
 def _work(cur, args):
     """(security_id, ticker, security_type) to load."""
+    if getattr(args, "security_ids", None):         # other loaders: these securities, no symbol lookup
+        cur.execute("""SELECT security_id, ticker, security_type FROM srm.v_security
+                        WHERE security_id = ANY(%s) AND ticker IS NOT NULL ORDER BY ticker""", (list(args.security_ids),))
+        return cur.fetchall()
     if args.symbols:
         out = []
         for s in args.symbols:
@@ -63,7 +67,9 @@ def _work(cur, args):
         WITH held AS (
             SELECT security_id FROM srm.portfolio_holding
             UNION SELECT security_id FROM srm.portfolio_tax_lot
-            UNION SELECT security_id FROM srm.benchmark_constituent WHERE valid_to = 'infinity'),
+            -- Not the Vanguard funds' holdings (V036): their month-end valuations are all they have.
+            UNION SELECT c.security_id FROM srm.benchmark_constituent c JOIN srm.benchmark b USING (benchmark_id)
+                   WHERE c.valid_to = 'infinity' AND b.provider IS DISTINCT FROM 'Vanguard'),
         fresh AS (
             SELECT DISTINCT l.security_id FROM srm.price p JOIN srm.listing l USING (listing_id)
              WHERE p.price_date >= current_date - 5)
@@ -100,6 +106,8 @@ def run(conn, cfg, args):
         # Up to date = priced on the last weekday before today (Friday's close on a weekend or Monday morning).
         last_weekday = today - datetime.timedelta(days={0: 3, 6: 2}.get(today.weekday(), 1))
         empty = 0
+        # Backfill (vanguard-funds): from --since even when recent prices exist, to fill history that starts late.
+        backfill = getattr(args, "backfill", False)
         for n, (security_id, ticker, security_type) in enumerate(work, 1):
             if security_type == NO_FEED:
                 run.reject(ticker, "a collective investment trust has no public prices: srm.py load trust-navs")
@@ -113,9 +121,9 @@ def run(conn, cfg, args):
                 run.reject(ticker, "no current listing to attach prices to")
                 continue
             listing_id, currency, last = row
-            if last and last >= last_weekday and not args.force:
+            if last and last >= last_weekday and not args.force and not backfill:
                 continue
-            start = max(since, (last - datetime.timedelta(days=5)).isoformat()) if last else since
+            start = max(since, (last - datetime.timedelta(days=5)).isoformat()) if last and not backfill else since
             symbol = ticker.replace(".", "^")             # Nasdaq writes class shares as BRK^B
             asset = "etf" if security_type in ("ETF", "ETN") else "mutualfunds" if security_type == "Mutual Fund" else "stocks"
             url = URL.format(symbol=symbol, asset=asset, start=start, end=today.isoformat())

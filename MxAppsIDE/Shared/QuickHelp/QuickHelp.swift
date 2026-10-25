@@ -1,6 +1,6 @@
 //
 //  QuickHelp.swift
-//  Shared by MxDataHUB, MxJobsWMS, MxDataSQL and MxFileMGR (MXcodeIDE/Shared/QuickHelp; MxDataSQL and MxFileMGR compile only this folder of Shared)
+//  Shared by MxDataHUB, MxJobsMGR, MxDataSQL and MxFileMGR (MxAppsIOS/Shared/QuickHelp; MxDataSQL and MxFileMGR compile only this folder of Shared)
 //
 //  Quick Help, as in MxNoteONE (and Logic Pro): a panel that describes what's under the pointer — a
 //  button, a list, a table cell, a node — in a sentence or two, with its shortcut. With the pointer over
@@ -206,8 +206,7 @@ struct QuickHelpPanel: View {
                 }
                 if !item.detail.isEmpty {
                     if scrolls {
-                        ScrollView(.vertical) { detail(item.detail) }
-                            .scrollIndicators(.automatic)
+                        QuickHelpScrollingDetail { detail(item.detail) }
                     } else {
                         detail(item.detail)
                     }
@@ -278,6 +277,24 @@ struct QuickHelpPanel: View {
     }
 }
 
+/// A description that fits shows as it is; a longer one scrolls with a scroll bar that stays visible, so it's clear
+/// there's more (the system's overlay scrollers otherwise stay hidden until you scroll).
+struct QuickHelpScrollingDetail<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        ViewThatFits(in: .vertical) {
+            content()
+            ScrollView(.vertical) {
+                content()
+                    // Room for the scroll bar beside the text.
+                    .padding(.trailing, 10)
+            }
+            .scrollIndicators(.visible)
+        }
+    }
+}
+
 /// The docked panel, where an app puts it (bottom of the sidebar); nothing while hidden or floating.
 struct QuickHelpDock: View {
     /// Height of Quick Help docked at the bottom of a sidebar.
@@ -301,7 +318,7 @@ struct QuickHelpDock: View {
 extension View {
     /// Quick Help docked at the bottom of this view (a sidebar), as in MxNoteONE. A fixed height that scrolls a long
     /// description: a dock that grew with its text changed the split view column's minimum size whenever Quick Help
-    /// changed, and AppKit aborted on the update-constraints loop (MxJobsWMS, 2026-10-18).
+    /// changed, and AppKit aborted on the update-constraints loop (MxJobsMGR, 2026-10-18).
     func quickHelpDock(height: CGFloat = QuickHelpDock.sidebarHeight) -> some View {
         safeAreaInset(edge: .bottom, spacing: 0) { QuickHelpDock(height: height) }
     }

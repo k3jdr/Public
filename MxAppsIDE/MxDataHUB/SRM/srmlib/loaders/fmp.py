@@ -4,6 +4,7 @@ levels. Works per symbol on the benchmark / portfolio securities (bulk and const
 are not on the plan). Stops cleanly when the plan's limit is reached."""
 
 import datetime
+import urllib.parse
 
 import psycopg2.extras
 
@@ -18,20 +19,28 @@ class PlanLimit(Exception):
     pass
 
 
+# One budget for every FMP client in the process: loaders that run FMP steps back to back (listed-derivatives:
+# profiles, then prices) would otherwise each allow a full minute's calls in the same minute and trip FMP's limit.
+# The plan allows 750 a minute (2026-10-24); 600 leaves room for the accounts service, which uses the same key.
+LIMITER = RateLimiter(600, 60)
+
+
 class FMP:
     def __init__(self, cfg, run):
         self.key = cfg.api_key("fmp")
         if not self.key:
             raise SystemExit("No FMP API key: set FMP_API_KEY, or add it to the Keychain (service SRM-api, account fmp)")
         self.run = run
-        self.limiter = RateLimiter(250, 60)
+        self.limiter = LIMITER
 
     def get(self, endpoint, **params):
         params["apikey"] = self.key
-        query = "&".join(f"{k}={v}" for k, v in params.items())
+        query = urllib.parse.urlencode(params)   # encoded: a space or & in a value can't break (or expose) the URL
         self.run.api_calls += 1
         try:
-            return http(f"{BASE}{endpoint}?{query}", limiter=self.limiter, retries=2)
+            # A 429 is usually the per-minute limit ("Limit Reach … upgrade your plan" is FMP's wording for any
+            # limit): back off 5, 10, 20 and 40 seconds, past a full minute, before treating it as the plan's.
+            return http(f"{BASE}{endpoint}?{query}", limiter=self.limiter, retries=4)
         except HTTPError as e:
             if e.status == 402:
                 raise PlanLimit(f"{endpoint} is not on the FMP plan")
@@ -41,8 +50,25 @@ class FMP:
 
 
 def _symbols(cur, args):
-    """(security_id, fmp symbol) for the work set: --symbols, --all-securities (every active security),
-    else benchmark and portfolio securities."""
+    """(security_id, fmp symbol) for the work set: given pairs (other loaders: no symbol lookup, so a symbol two
+    securities answer to can't pick the wrong one), --symbols, --all-securities (every active security), --otc
+    (every current OTC listing: (security_id, symbol, listing_id), so an OTC line of shares listed abroad gets its own
+    dollar prices, not the home listing), --missing-sector (operating companies never profiled), else benchmark and
+    portfolio securities plus the operating companies still without a sector."""
+    if getattr(args, "security_symbols", None):
+        return list(args.security_symbols)
+    if getattr(args, "otc", False):
+        # Massive's day files carry no OTC tickers, and earnings-symbols creates OTC securities without prices.
+        cur.execute("""SELECT l.security_id, coalesce(si.id_value, fmp.id_value, l.ticker), l.listing_id
+                         FROM srm.listing l JOIN srm.security s USING (security_id)
+                         LEFT JOIN LATERAL (SELECT id_value FROM srm.security_identifier si
+                                             WHERE si.listing_id = l.listing_id AND si.id_type = 'FMP_SYMBOL'
+                                               AND current_date < si.valid_to LIMIT 1) si ON true
+                         LEFT JOIN LATERAL (SELECT srm.current_identifier(l.security_id, 'FMP_SYMBOL') AS id_value
+                                             WHERE l.is_primary) fmp ON true
+                        WHERE l.mic = 'OTCM' AND current_date >= l.valid_from AND current_date < l.valid_to AND s.is_active
+                        ORDER BY l.security_id, l.listing_id""")
+        return cur.fetchall()
     if args.symbols:
         out = []
         for s in args.symbols:
@@ -51,6 +77,8 @@ def _symbols(cur, args):
             if row:
                 out.append((row[0], fmp_symbol(s.upper())))
         return out
+    if getattr(args, "missing_sector", False):
+        return _missing_sector(cur)
     if getattr(args, "all_securities", False):
         cur.execute("""SELECT si.security_id, si.id_value FROM srm.security_identifier si JOIN srm.security s USING (security_id)
                         WHERE si.id_type = 'FMP_SYMBOL' AND current_date < si.valid_to AND s.is_active
@@ -62,7 +90,19 @@ def _symbols(cur, args):
         symbol = cur.fetchone()[0] or fmp_symbol(ticker)
         if symbol:
             out.append((security_id, symbol))
-    return out
+    # And any operating company still without a sector (newly listed), so the daily refresh classifies it.
+    seen = {sid for sid, _ in out}
+    return out + [w for w in _missing_sector(cur) if w[0] not in seen]
+
+
+def _missing_sector(cur):
+    """Active operating companies (common stock, ADRs, REITs) with no FMP sector: never profiled."""
+    cur.execute("""SELECT v.security_id, srm.current_identifier(v.security_id, 'FMP_SYMBOL'), v.ticker
+                     FROM srm.v_security v
+                    WHERE v.is_active AND v.sector IS NULL AND v.ticker IS NOT NULL
+                      AND v.security_type IN ('Common Stock', 'ADR', 'REIT')
+                    ORDER BY v.security_id""")
+    return [(sid, sym or fmp_symbol(ticker)) for sid, sym, ticker in cur.fetchall()]
 
 
 def load_profiles(conn, cfg, args):
@@ -95,7 +135,8 @@ def load_profiles(conn, cfg, args):
             ids = [(security_id, "FMP_SYMBOL", symbol, None, None)]
             if p.get("isin"):
                 ids.append((security_id, "ISIN", p["isin"], None, None))
-            if p.get("cusip"):
+            if p.get("cusip") and (not p.get("isin") or p["isin"][2:11] == p["cusip"]):
+                # A CUSIP that isn't inside the ISIN is another security's (FMP mixes them up for OTC foreign shares).
                 ids.append((security_id, "CUSIP", p["cusip"], None, None))
             set_identifiers(cur, run, ids, "FMP")
             sec_type = ("ETF" if p.get("isEtf") else "Closed-End Fund" if p.get("isFund")
@@ -178,23 +219,31 @@ def _upsert_prices(cur, listing_id, rows, src, load_id, currency):
 
 def load_prices(conn, cfg, args):
     since = args.since or (datetime.date.today() - datetime.timedelta(days=730)).isoformat()
-    with LoadRun(conn, "FMP", "fmp_prices", {"since": since, "max": args.max}) as run, conn.cursor() as cur:
+    otc = getattr(args, "otc", False)
+    name = "fmp_otc_prices" if otc else "fmp_prices"
+    with LoadRun(conn, "FMP", name, {"since": since, "max": args.max, "otc": otc}) as run, conn.cursor() as cur:
         api = FMP(cfg, run)
         fmp = source_id(cur, "FMP")
         work = _symbols(cur, args)[: args.max or None]
-        log(f"  {len(work)} symbols, prices since {since}")
-        for n, (security_id, symbol) in enumerate(work, 1):
+        log(f"  {len(work)} symbols{' (OTC listings)' if otc else ''}, prices since {since}")
+        for n, item in enumerate(work, 1):
+            security_id, symbol = item[0], item[1]
+            # A given listing (--otc), else the security's primary listing.
             cur.execute("""SELECT l.listing_id, l.currency_code,
                                   (SELECT max(price_date) FROM srm.price p WHERE p.listing_id = l.listing_id AND p.source_id = %s)
                              FROM srm.listing l WHERE l.security_id = %s AND current_date < l.valid_to
-                            ORDER BY l.is_primary DESC LIMIT 1""", (fmp, security_id))
+                              AND (%s::bigint IS NULL OR l.listing_id = %s::bigint)
+                            ORDER BY l.is_primary DESC LIMIT 1""",
+                        (fmp, security_id, item[2] if len(item) > 2 else None, item[2] if len(item) > 2 else None))
             row = cur.fetchone()
             if not row:
                 run.reject(symbol, "no current listing to attach prices to")
                 continue
             listing_id, currency, last = row
-            start = max(since, (last - datetime.timedelta(days=5)).isoformat()) if last else since
-            if last and last >= datetime.date.today() - datetime.timedelta(days=1) and not args.force:
+            # backfill (sample-portfolios): from --since even when recent prices exist, for older history.
+            backfill = getattr(args, "backfill", False)
+            start = max(since, (last - datetime.timedelta(days=5)).isoformat()) if last and not backfill else since
+            if last and last >= datetime.date.today() - datetime.timedelta(days=1) and not args.force and not backfill:
                 continue
             try:
                 data = api.get("historical-price-eod/full", symbol=symbol, **{"from": start})
@@ -213,6 +262,63 @@ def load_prices(conn, cfg, args):
                 conn.commit()
                 log(f"  {n}/{len(work)}")
         conn.commit()
+        if otc and run.status != "partial":
+            retire_stale_otc(conn, cur, api, run, fmp)
+
+
+STALE_DAYS = 730
+
+
+def retire_stale_otc(conn, cur, api, run, fmp):
+    """OTC securities with no trade in two years on any of their listings (Russian ADRs since the 2022 sanctions,
+    bankrupt companies): their whole FMP history is loaded, so the last price shows, and the ones FMP says are no
+    longer actively trading are marked inactive since their last trade — they then drop out of searches that show
+    active securities only, and out of this loader."""
+    cur.execute("""SELECT l.security_id, l.listing_id, l.currency_code, coalesce(si.id_value, l.ticker)
+                     FROM srm.listing l JOIN srm.security s USING (security_id)
+                     LEFT JOIN srm.security_identifier si ON si.listing_id = l.listing_id AND si.id_type = 'FMP_SYMBOL'
+                                                          AND current_date < si.valid_to
+                    WHERE l.mic = 'OTCM' AND current_date >= l.valid_from AND current_date < l.valid_to AND s.is_active
+                      AND NOT EXISTS (SELECT 1 FROM srm.listing l2 JOIN srm.price p ON p.listing_id = l2.listing_id
+                                       WHERE l2.security_id = l.security_id AND p.price_date >= current_date - %s)""",
+                (STALE_DAYS,))
+    stale = cur.fetchall()
+    if not stale:
+        return
+    log(f"  {len(stale)} OTC listings without a trade in {STALE_DAYS} days: whole history, and inactive if FMP agrees")
+    retired = []
+    for security_id, listing_id, currency, symbol in stale:
+        try:
+            profile = (api.get("profile", symbol=symbol) or [{}])[0]
+            data = api.get("historical-price-eod/full", symbol=symbol, **{"from": "1990-01-01"}) or []
+        except (PlanLimit, HTTPError) as e:
+            run.reject(symbol, str(e))
+            continue
+        run.read += len(data)
+        result = _upsert_prices(cur, listing_id, data, fmp, run.load_id, currency)
+        run.inserted += sum(1 for r in result if r[0])
+        last = max((r["date"] for r in data if r.get("close") is not None), default=None)
+        active = profile.get("isActivelyTrading")
+        recent = last and datetime.date.fromisoformat(last) >= datetime.date.today() - datetime.timedelta(days=STALE_DAYS)
+        if active or recent:
+            log(f"  {symbol}: kept active (FMP: actively trading {active}, last trade {last or 'none'})")
+            continue
+        cur.execute("""UPDATE srm.security SET is_active = false, inactive_date = %s, updated_at = now()
+                        WHERE security_id = %s AND is_active""", (last or datetime.date.today().isoformat(), security_id))
+        run.updated += cur.rowcount
+        retired.append(f"{symbol} (last trade {last or 'none in FMP'})")
+        conn.commit()
+    if retired:
+        run.message = f"{len(retired)} OTC securities marked inactive: " + ", ".join(retired)
+        log("  " + run.message)
+
+
+def load_otc_prices(conn, cfg, args):
+    """fmp-prices --otc as a loader of its own, for the daily Prices step: every current OTC listing (ADRs and the
+    ordinary "F" lines of foreign companies — Massive's day files have none), two years the first time, then the
+    days since its last FMP price; then OTC securities with no trade in two years are retired (retire_stale_otc)."""
+    args.otc = True
+    load_prices(conn, cfg, args)
 
 
 def load_index_levels(conn, cfg, args):

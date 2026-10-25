@@ -43,6 +43,7 @@ On a Mac keyboard, press **fn** with the F-keys unless "Use F1, F2, etc. keys as
 | Properties | ⌘I |
 | Copy / Paste files (Finder compatible) / Move Item Here | ⌘C / ⌘V / ⌥⌘V |
 | Copy Path | ⌥⌘C |
+| Show Clipboard | ⇧⌘V |
 | Select Group / Deselect Group / Invert Selection | ⌘= / ⌘- / ⇧⌘I |
 | Show Hidden Files | ⇧⌘. |
 | Sort by Name, Ext, Size, Date, Kind | ⌃⌘1 – ⌃⌘5 (again to reverse) |
@@ -100,6 +101,13 @@ description, so for `.avi` the Description is stored in (and read from) the comm
 custom ID3 frame (`TXXX:description`, not shown by music players), and the command adds `-id3v2_version 3 -write_id3v1 1` so
 the tags stay ID3v2.3 and ID3v1 tags are kept (plain ffmpeg would write 2.4 and drop ID3v1).
 
+**Edit ▸ Show Clipboard** (⇧⌘V) opens a **Clipboard** window, as in Finder: *Clipboard contents: …* and the content itself —
+copied files (name, folder, size; a **Quick Look preview** of the selected one, which **Preview** hides or shows;
+double-click opens a file in the Viewer; **Paste into** the active pane's folder, **Move Here**, **Show in Finder**), a picture
+(format and pixel size), styled text, plain text (character and line counts), a link or a colour — plus the data types
+underneath and **Clear Clipboard**. It follows the clipboard while open (macOS has no change notification, so it checks
+twice a second).
+
 **Properties (⌘I)** shows the kind, total size, dates and owner, and lets you change the permission bits
 (optionally for everything inside a folder) and the modification date.
 
@@ -121,7 +129,7 @@ the tags stay ID3v2.3 and ID3v1 tags are kept (plain ffmpeg would write 2.4 and 
 
 ## Quick Help
 
-**View ▸ Quick Help** (⌥⌘/) shows a panel at the bottom of the sidebar, as in MxNoteONE, MxDataHUB and MxJobsWMS,
+**View ▸ Quick Help** (⌥⌘/) shows a panel at the bottom of the sidebar, as in MxNoteONE, MxDataHUB and MxJobsMGR,
 telling what's under the pointer in a sentence or two, with its shortcut: toolbar and pane buttons, the path bar,
 filter, tabs, function keys, sidebar entries, the transfer panel — and in the file lists the item under the pointer
 (kind, size, date and what Return, Space, F3 and F4 do) or the column header (and how it's sorted). Over nothing it

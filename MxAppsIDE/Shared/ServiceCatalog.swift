@@ -1,8 +1,8 @@
 //
 //  ServiceCatalog.swift
-//  Shared by MxDataHUB, MxJobsWMS and MxPortMGR (MXcodeIDE/Shared)
+//  Shared by MxDataHUB, MxJobsMGR and MxAcctMGR (MxAppsIOS/Shared)
 //
-//  The Layer 3 services both apps rely on (MXcodeIDE/Services): what each is for, why it is written in its
+//  The Layer 3 services both apps rely on (MxAppsIOS/Services): what each is for, why it is written in its
 //  language, which use cases and samples it serves, and whether it is running now. The built-in entries mirror
 //  each service's GET /describe, so the apps can explain a service and how to start it while it is stopped.
 //
@@ -62,7 +62,7 @@ nonisolated struct ServiceInfo: Codable, Identifiable, Hashable, Sendable {
     var useCases: [String]
     var endpoints: [ServiceEndpoint]
     var samples: [String]
-    /// Folder under MXcodeIDE/Services.
+    /// Folder under MxAppsIOS/Services.
     var folder: String = ""
     var developIn: String = ""
 
@@ -76,10 +76,10 @@ nonisolated struct ServiceInfo: Codable, Identifiable, Hashable, Sendable {
 }
 
 nonisolated enum ServiceCatalog {
-    static let repository = "~/MyCodeGIT/MXcodeIDE"
-    static let startCommand = "python3 ~/MyCodeGIT/MXcodeIDE/Services/mxservices.py start"
-    static let statusCommand = "python3 ~/MyCodeGIT/MXcodeIDE/Services/mxservices.py status"
-    static let agentsCommand = "python3 ~/MyCodeGIT/MXcodeIDE/Services/mxservices.py install-agents"
+    static let repository = "~/MyCodeGIT/MxAppsIOS"
+    static let startCommand = "python3 ~/MyCodeGIT/MxAppsIOS/Services/mxservices.py start"
+    static let statusCommand = "python3 ~/MyCodeGIT/MxAppsIOS/Services/mxservices.py status"
+    static let agentsCommand = "python3 ~/MyCodeGIT/MxAppsIOS/Services/mxservices.py install-agents"
 
     static func service(_ id: String) -> ServiceInfo? { all.first { $0.id == id } }
 
@@ -96,7 +96,7 @@ nonisolated enum ServiceCatalog {
     static let all: [ServiceInfo] = [
         ServiceInfo(
             id: "srm-loader", name: "Security master loaders", language: "Python", port: 8770,
-            purpose: "Refreshes the security master (MxDataHUB/SRM) by category — reference data, the listed universe and issuers, benchmark constituents, identifiers, prices and index levels, corporate actions — by running srm.py's loaders one at a time, and reports data freshness and quality.",
+            purpose: "Refreshes the security master (MxDataHUB/SRM) by category — reference data, the listed universe and issuers, benchmark constituents, identifiers, prices and index levels, corporate actions, market series (VIX, Treasury yields) and company fundamentals — by running srm.py's loaders one at a time, and reports data freshness and quality.",
             whyThisLanguage: "Loading is I/O: downloading files and API pages, parsing CSV / XML / JSON, upserting into PostgreSQL. Python does that with the least code, and the loaders are the same scripts you run from the command line.",
             useCases: ["data-refresh", "data-quality"],
             endpoints: [
@@ -119,8 +119,8 @@ nonisolated enum ServiceCatalog {
             samples: ["active-optimization", "passive-tracking", "attribution"], folder: "analytics", developIn: "VS Code or PyCharm"),
         ServiceInfo(
             id: "accounts", name: "Personal accounts", language: "Python", port: 8774,
-            purpose: "Keeps MxPortMGR's My Portfolio in the security master: searches securities to add, serves benchmark weights, and stores each personal account — type, approach, benchmark, cash and open tax lots — writing the day's holdings snapshot from the lots, so MxDataHUB ▸ Portfolios and the analytics service see it like any other portfolio.",
-            whyThisLanguage: "Python and psycopg2 are the shortest path from an HTTP request to a PostgreSQL transaction, with srm.py's own connection settings — so MxPortMGR, a sandboxed app, needs no database credentials.",
+            purpose: "Keeps MxAcctMGR's My Portfolio in the security master: searches securities to add, serves benchmark weights, and stores each personal account — type, approach, benchmark, cash and open tax lots — writing the day's holdings snapshot from the lots, so MxDataHUB ▸ Portfolios and the analytics service see it like any other portfolio.",
+            whyThisLanguage: "Python and psycopg2 are the shortest path from an HTTP request to a PostgreSQL transaction, with srm.py's own connection settings — so MxAcctMGR, a sandboxed app, needs no database credentials.",
             useCases: ["data-quality", "active", "passive"],
             endpoints: [
                 ServiceEndpoint(method: "GET", path: "/securities?q=&kind=", summary: "Search securities (ticker, name, ISIN, CUSIP) with the latest price"),
@@ -183,7 +183,7 @@ nonisolated enum ServiceCatalog {
     }
 }
 
-/// The sample jobspaces of MxJobsWMS, as both apps describe them.
+/// The sample jobspaces of MxJobsMGR, as both apps describe them.
 nonisolated struct SampleInfo: Identifiable, Hashable, Sendable {
     var id: String
     var title: String

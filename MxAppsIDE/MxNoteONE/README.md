@@ -13,7 +13,7 @@ Open `MxNoteONE.xcodeproj` in Xcode, then Run. There are no package dependencies
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Sidebar**   | Open notebooks, each with its**sections** (coloured tabs) and **section groups** (folders, can nest). Right-click a notebook, section or group to rename, recolour, move up/down or into a group, password protect, export or delete it. **Drag** a section or group (from anywhere on its row) to reorder it — a line shows where it'll go; drop it on a group to put it inside (hold it over a closed group and it springs open), or on the notebook's name to put it last. Drop a page on a section to move it there (with its subpages), in this or another notebook. **+** adds a section, section group or notebook; the tag and trash buttons open the Tag Summary and Recycle Bin. The search field searches every open notebook.                                                                                                                                                             |
 | **Page list** | Pages of the selected section with date and first line. Subpages are indented (two levels) and can be collapsed; drag a page (selected or not) to reorder it — a line shows where it'll go, and its subpages move with it; dropped next to a subpage it becomes one, and dropped below the list it goes last. Drag it onto a section in the sidebar to move it there. Dragged into a note, a page (or section) becomes a link to it. Right-click for New Page / Subpage, Make Subpage, Promote, Move or Copy…, Duplicate, Copy Link to Page, Export as PDF / Markdown, Print, Delete. While the search field has text, this column shows the search results instead.                                                                                                                                                                   |
-| **Ribbon**    | **Home**: font and size boxes showing the selected text's font and size ("Mixed" / "–" when the selection mixes several; with table cells selected, the cells' font), bold / italic / underline / strikethrough buttons lit when the selection has them, then font, size, bold, italic, underline, strikethrough, superscript/subscript, highlight and font colours, clear formatting, bullets, numbering, indent, alignment, line spacing, styles (Heading 1–4, Title, Quote, Code), tags. **Insert**: table, DBML database diagram, picture, file attachment, screen clipping, audio recording, link, date / time stamps, page templates. **Draw**: draw.io diagrams — new, from a template, insert or link a .drawio.svg file, edit, export, the editor (online / offline) and its theme; old ink can be turned into a diagram. **View**: page colour, rule lines and grids, zoom, full page view, Tag Summary, Recycle Bin. |
+| **Ribbon**    | **Home**: font and size boxes showing the selected text's font and size ("Mixed" / "–" when the selection mixes several; with table cells selected, the cells' font), bold / italic / underline / strikethrough buttons lit when the selection has them, then font, size, bold, italic, underline, strikethrough, superscript/subscript, highlight and font colours, clear formatting, bullets, numbering, indent, alignment, line spacing, styles (Heading 1–4, Title, Quote, Code), tags. **Insert**: table, DBML database diagram, picture, video, file attachment, screen clipping, audio recording, link, date / time stamps, page templates. **Draw**: draw.io diagrams — new, from a template, insert or link a .drawio.svg file, edit, export, the editor (online / offline) and its theme; old ink can be turned into a diagram. **View**: page colour, rule lines and grids, zoom, full page view, Tag Summary, Recycle Bin. |
 | **Page**      | A title, and under it the date and time the page was created │ **Updated** and when it was last changed (hover for both in words), then a free-form canvas: click anywhere to start a text container there (or double-click, or not at all — Settings ▸ General ▸ Page, or right-click the page ▸ Clicking the Page). Right-click an empty part of the page for New Text Box Here, Paste Here, and Insert Here (a table, picture, file, map, DBML diagram, score, 3D model or diagram where you clicked). Drag a container by its top bar, resize it from its right edge, right-click the bar for Cut / Copy / Delete / Bring to Front / Send to Back. Click a container's bar (or press Escape while typing) to select it; then Delete removes it and the arrow keys nudge it. Drop pictures and files onto the page. Pinch or use View ▸ Zoom. The page is always drawn as light paper.                                                                                 |
 
 ## Pages
@@ -22,7 +22,9 @@ Right-click the empty space in the pages list for **Add New**: New Page, New Sub
 Section and New Section Group. Right-click a page for its own menu.
 
 - **Text containers** hold rich text (fonts, colours, highlights, lists, inline pictures). Typing grows the container.
-- **Bullets and numbering**: Return continues the list, Return on an empty item ends it, Tab / Shift-Tab indent items.
+- **Bullets and numbering**: Return continues the list, Return on an empty item ends it, Tab / Shift-Tab indent items. A long
+  item's wrapped lines line up under its first character, not under the bullet, number or To Do box (a hanging
+  indent as wide as the marker, kept up to date as you edit).
 - **Tags**: ☐ To Do, ⭐ Important, ❓ Question, ❗ Critical, 💡 Idea, 📌 Remember for Later, 📖 Definition, 📞 Phone Number,
   💬 Discuss with Team (⌘1 – ⌘9, ⌘0 removes). Click ☐ to check it off; Return after a To Do starts another.
 - **Tables, OneNote style**: type some text and press **Tab** — the paragraph becomes a table with your text in the
@@ -200,10 +202,41 @@ Section and New Section Group. Right-click a page for its own menu.
 - Tables print, export to PDF and sync with OneNote with their shading and cell formatting.
 - **Pictures**: double-click to open in a viewer; right-click to copy, save, or reset to original size.
 - **Attachments** keep a copy of the file inside the notebook; double-click to open. **Recordings** play in place.
+- **Videos** (Insert ▸ Video, Insert tab ▸ Video, right-click the page ▸ Insert Here ▸ Video…, or drop a .mov, .mp4 or
+  .m4v file on the page) are copied into the notebook and play in place. The container shows a poster frame until it
+  plays and keeps the video's proportions when you resize it. Its control bar has play / pause, stop (back to the
+  start), back and forward 10 seconds, the time played and the length, a position slider, mute and volume;
+  double-clicking the video plays or pauses it. Right-click for Play / Stop, **Use This Frame as Poster**, Open in
+  Viewer and Save Video As…. Videos in password-protected sections play from a decrypted temporary copy that is
+  removed when the page closes. Exports link the video file; OneNote sync uploads it as an attachment.
+- **Videos macOS can't play** — VP9, AV1 or VP8 (common from YouTube and the web, often in an .mp4) — are converted
+  to an H.264 / AAC .mp4 with **ffmpeg** as they're inserted (progress in the sidebar; the Mac's hardware encoder,
+  libx264 if that fails), then put on the page as usual. Such a video inserted earlier offers to convert itself
+  when played, or right-click ▸ Convert for Playback (H.264)…; the converted file replaces it. ffmpeg comes from
+  Homebrew (`brew install ffmpeg`); without it MxNoteONE says so. A video goes on the page at most 640 points on its
+  longer side (a phone's portrait video is 360 × 640).
+- **Transcripts and recaps** (as for a Teams meeting recording): the control bar's transcript button
+  (speech bubble) or right-click the video:
+  - **Transcribe to Page** turns what's said into text on this Mac (Apple's Speech framework — SpeechAnalyzer; the
+    speech model for your language downloads the first time). A text box appears under the video: *Transcript —
+    name*, the length and language, then a paragraph per stretch of speech with its time. Click a time to play the
+    video from there. The transcript is also kept with the video, so search finds its words and a recap can be made
+    after the text box was edited or deleted. Your Mac's language is used when the transcriber has it, else US English.
+  - **Recap with Apple Intelligence** (on this Mac, FoundationModels; needs Apple Intelligence turned on) writes
+    *Recap — name* beside the video (or under it when there's no room): an overview, key points, **action items** as
+    To Do tags (so they show in the Tag Summary), and **chapters** with times that play the video. It transcribes
+    first when there's no transcript yet. Long transcripts are summarized part by part, then recapped. Recordings of
+    any kind work (meetings, lessons, talks). When Apple's safety filter blocks the recap — finance lessons trip it
+    ("speculating", "buy a put") — it's written again as plain text with Apple's filter for summarizing your own
+    text, and a chapter the model gives no time for is listed without one.
+  - Progress shows over the picture; the same menu stops the work. Nothing leaves the Mac.
 - **Snap to Grid** (View tab or View ▸ Snap to Grid, ⌃⌘G — as in OneNote for Windows): containers, pictures, tables
   and shapes line up on the page grid when you place, drag, resize or nudge them (arrow keys move one grid step). The
   grid is the page's rule lines or grid when it has them, otherwise 12 points (shown as dots while you drag). Hold ⌥
-  to place something freely.
+  to place something freely. It reaches into **DBML diagrams** too: tables (one, or a selection moving together — the
+  one you drag lands on the grid, the others keep their places around it), the diagram's notes and their resize
+  corner, and arrow-key moves (to the next grid line) snap to the same page grid, shown as dots inside the diagram
+  while you drag, at any diagram zoom.
 - **Diagrams (draw.io)** — the Draw tab. **New Diagram** (⌃⌘D) or **From Template** puts a draw.io diagram on the page
   and opens it in **draw.io's own editor** — the one VS Code's draw.io extension uses: every shape library
   (flowchart, UML, BPMN, network, AWS / Azure / GCP, electrical, mockups…), connectors, waypoints, layers, styles,
@@ -227,7 +260,7 @@ Section and New Section Group. Right-click a page for its own menu.
   Address. Clicking a link opens the place (a paragraph link scrolls to the paragraph and selects it, and still finds
   it after edits move it; a cell link selects the cell). A web address on the clipboard pastes as a link the same way.
 - **Links from other apps**: `mxnoteone://` links open in MxNoteONE from anywhere — the app registers the scheme
-  (`Info.plist`). Paste a copied link into MxPortMGR's Link dialog (*Use the Link Copied in MxNoteONE*, on an earnings
+  (`Info.plist`). Paste a copied link into MxAcctMGR's Link dialog (*Use the Link Copied in MxNoteONE*, on an earnings
   company's symbol or name, or a holding), a browser's address bar, or Terminal (`open 'mxnoteone://…'`): MxNoteONE
   comes forward — loading its open notebooks first if it was just launched for the link — and goes where the link
   leads, as a click on it inside does (page, paragraph, cell, pin, section or notebook). A link into a notebook that
@@ -793,7 +826,7 @@ The inspector's **Tables** tab lists every table in the notebook with its name, 
 **View ▸ Quick Help** (⌥⌘/) shows a panel at the bottom of the sidebar — like Logic Pro's — telling what's under the
 pointer in a sentence or two, with its shortcut: any toolbar tool or section; a note in a score (its pitch, length,
 bar, voice, dynamics and marks); a table cell (its formula and value, number format, merging); a link (where it goes,
-its hover text); a text box, picture, attachment, recording, chart, the page title or the page itself. Over nothing
+its hover text); a text box, picture, attachment, recording, video (and each of its controls, including Transcript and Recap), chart, the page title or the page itself. Over nothing
 it can describe, it tells about what's being worked on — the selected notes, the cell being typed in, the text being
 typed. Every toolbar tool has a short one- or two-word tooltip; Quick Help has the details.
 
@@ -953,7 +986,7 @@ Name.mxnotebook/
   notebook.json          section tree, colours, recycle bin
   sections/<id>.json     a section's page list and search index (titles, text, tags)
   pages/<id>.json        a page: title, style, containers (rich text as RTFD, tables), ink
-  assets/<id>.<ext>      pictures, attachments and recordings
+  assets/<id>.<ext>      pictures, attachments, recordings, videos and their posters
 ```
 
 **Password-protected sections** encrypt their section file, pages and assets with AES-GCM using a key derived from the

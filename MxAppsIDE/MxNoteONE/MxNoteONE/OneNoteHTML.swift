@@ -132,7 +132,7 @@ enum OneNoteHTML {
                 parts.append(GraphClient.Part(name: name, contentType: type, data: imageData))
                 let height = Int(max(element.height - grip, 10).rounded())
                 body += "<img style=\"position:absolute;left:\(x)px;top:\(y)px\" width=\"\(w)\" height=\"\(height)\" src=\"name:\(name)\" />\n"
-            case .file, .audio:
+            case .file, .audio, .video:
                 guard let asset = element.asset, let data = assetData(asset) else { continue }
                 let fileName = element.fileName ?? asset
                 let name = "file\(parts.count)"
@@ -283,6 +283,7 @@ enum OneNoteHTML {
                 return
             }
             var piece = escape(ns.substring(with: run)).replacingOccurrences(of: "\t", with: "&nbsp;&nbsp;&nbsp;&nbsp;")
+                .replacingOccurrences(of: LineSpacing.lineBreak, with: "<br />")
             var style: [String] = []
             if let font = attrs[.font] as? NSFont {
                 if font.familyName != base.familyName, let family = font.familyName { style.append("font-family:\(escape(family))") }

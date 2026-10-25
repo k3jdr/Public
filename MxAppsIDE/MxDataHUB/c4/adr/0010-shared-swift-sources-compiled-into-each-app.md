@@ -1,7 +1,7 @@
 # ADR-0010: Shared Swift sources are compiled into each app
 
 - **Status:** Accepted — recorded retrospectively on 2026-10-17 from the code, READMEs and git history
-- **Applies to:** MxDataHUB, MxJobsWMS (and MxDataSQL, MxFileMGR for Quick Help)
+- **Applies to:** MxDataHUB, MxJobsMGR (and MxDataSQL, MxFileMGR for Quick Help)
 
 ## Context
 
@@ -10,7 +10,7 @@ package or framework would add versioning and build configuration for a few file
 
 ## Decision
 
-Keep the shared code in **`MXcodeIDE/Shared`** and add it to each Xcode project as a **file-system synchronized
+Keep the shared code in **`MxAppsIOS/Shared`** and add it to each Xcode project as a **file-system synchronized
 group** (`path = ../Shared`), so it compiles into each app. MxDataSQL and MxFileMGR include only `Shared/QuickHelp`.
 
 ## Consequences

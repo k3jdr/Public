@@ -139,7 +139,7 @@ enum PageExporter {
                 for row in table.rows.dropFirst(table.headerRow ? 1 : 0) {
                     lines.append("| " + row.map(escape).joined(separator: " | ") + " |")
                 }
-            case .image, .file, .audio:
+            case .image, .file, .audio, .video:
                 guard let asset = element.asset, let data = store.assetData(asset, for: ref) else { continue }
                 let fileName = element.kind == .image ? asset : (element.fileName ?? asset)
                 try? FileManager.default.createDirectory(at: assetsFolder, withIntermediateDirectories: true)
@@ -279,7 +279,8 @@ enum PageExporter {
                 }
                 line += piece
             }
-            lines.append(line)
+            // A line break inside the paragraph (Shift-Return) stays in its list item.
+            lines.append(line.replacingOccurrences(of: LineSpacing.lineBreak, with: "<br>"))
             if range.length == 0 { break }
         }
         return lines

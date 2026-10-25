@@ -4,7 +4,7 @@
 //
 //  Quick Help, as in Logic Pro: a panel at the bottom of the sidebar that
 //  describes what's under the pointer — a toolbar tool or section, a note in
-//  a score, a table cell, a link, a text box, a picture — in a sentence or
+//  a score, a table cell, a link, a text box, a picture, a video's controls — in a sentence or
 //  two, with its shortcut. With the pointer over nothing it can describe, it
 //  tells about what's being worked on (the selected note, the cell being
 //  typed in…). View ▸ Quick Help (⌥⌘/) shows or hides it.
@@ -142,6 +142,11 @@ final class QuickHelp {
             return QuickHelpItem(title: "Music Score", detail: "Click to write notes: A–G add notes, 3–7 set the length, Space plays. The Score tab has every tool.", shortcut: nil, symbol: "music.note")
         case is ImageElementView:
             return QuickHelpItem(title: "Picture", detail: "Drag to move it; drag a corner to resize. Right-click to copy, save, rotate or delete it.", shortcut: nil, symbol: "photo")
+        case let bar as VideoControlBar:
+            return bar.quickHelp(at: p)
+        case let video as VideoElementView:
+            return QuickHelpItem(title: "Video", detail: "\(video.element.fileName ?? "A video") — double-click it to play or pause, or use the bar below it: play, stop, back or forward 10 seconds, mute and volume. Drag to move it; drag its right edge to resize (it keeps its proportions). Right-click to save it, open it in a viewer, pick its poster frame or delete it.",
+                                 shortcut: nil, symbol: "film")
         case let file as FileElementView:
             return QuickHelpItem(title: file.element.kind == .audio ? "Recording" : "Attachment",
                                  detail: file.element.kind == .audio ? "Click to play the recording. Right-click to save or delete it."
@@ -191,6 +196,7 @@ final class QuickHelp {
 // MARK: - The panel
 
 struct QuickHelpPanel: View {
+    static let height: CGFloat = 140
     @Bindable private var help = QuickHelp.shared
 
     var body: some View {
@@ -215,10 +221,14 @@ struct QuickHelpPanel: View {
                     }
                 }
                 if !item.detail.isEmpty {
-                    Text(item.detail)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    // Fits: shown as it is. Longer: scrolls, with a scroll bar that stays visible.
+                    ViewThatFits(in: .vertical) {
+                        detail(item.detail)
+                        ScrollView(.vertical) {
+                            detail(item.detail).padding(.trailing, 10)
+                        }
+                        .scrollIndicators(.visible)
+                    }
                 }
             } else {
                 Text("Point at a tool or at something on the page to see what it does.")
@@ -228,10 +238,21 @@ struct QuickHelpPanel: View {
             }
         }
         .padding(10)
-        .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
+        // A fixed height, as in the other MxAppsIOS apps: a panel that grew with its text changed the sidebar's
+        // minimum size whenever Quick Help changed (the layout loop that crashed MxJobsMGR, 2026-10-18).
+        .frame(maxWidth: .infinity, minHeight: Self.height, maxHeight: Self.height, alignment: .topLeading)
         .background(.background.opacity(0.6))
         .overlay(alignment: .top) { Divider() }
         .animation(nil, value: help.shown)
+    }
+
+    private func detail(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .textSelection(.enabled)
     }
 }
 
@@ -262,7 +283,7 @@ extension QuickHelp {
         "Map/Directions": "Driving or walking routes from one pin to another.",
         "Map/View": "The pin list, showing every pin, zooming, facing north, the title, and copying a picture of the map.",
         "Insert/3D": "A 3D model (parametric CAD): a new part, the sample bracket, or an STL / OBJ file. Double-click it on the page to edit it.",
-        "Insert/Files": "Pictures, attachments and screen clippings.",
+        "Insert/Files": "Pictures, videos, attachments and screen clippings.",
         "Insert/Recording": "Record audio onto the page.",
         "Insert/Links": "A link to a web page, an email address or a page in your notebooks.",
         "Insert/Time Stamp": "Today's date, the time, or both, where the caret is.",
@@ -317,7 +338,8 @@ extension QuickHelp {
         "Numbering": "Turns the paragraphs into a numbered list.",
         "Indent": "Moves the paragraphs in a level (Tab at the start of a list item does too).",
         "Outdent": "Moves the paragraphs out a level.",
-        "Alignment": "Left, centred, right or justified, and line spacing.",
+        "Alignment": "Left, centred, right or justified.",
+        "Line Spacing": "The space between the lines of the paragraphs: 1.0 (single), 1.15, 1.5, 2.0 or a custom value. Shift-Return breaks a line inside a paragraph, single spaced.",
         "Align Left": "Lines the paragraph up on the left.",
         "Center": "Centres the paragraph.",
         "Align Right": "Lines the paragraph up on the right.",
@@ -331,6 +353,7 @@ extension QuickHelp {
         "Score": "Inserts an empty music score: click it and type notes A–G.",
         "MusicXML": "Inserts a music score from a MusicXML file (MuseScore, Finale, Sibelius, Dorico).",
         "Picture": "Inserts a picture from a file.",
+        "Video": "Puts a video (.mov, .mp4, .m4v) on the page, copied into the notebook. It plays in place, with play, stop, ±10 seconds, mute and volume. You can also drop a video file on the page.",
         "File": "Attaches a file to the page; double-click it to open.",
         "Screen Clipping": "Takes a picture of part of the screen and puts it on the page.",
         "Record Audio": "Records sound onto the page.",
@@ -358,7 +381,7 @@ extension QuickHelp {
         "Page Width": "Zooms so the page fills the window's width.",
         "Full Page View": "Hides the notebook and page lists so the page fills the window.",
         "Recycle Bin": "Deleted pages and sections, kept for 60 days. Restore them from here.",
-        "Snap to Grid": "Boxes and drawings line up on an invisible grid as you move them. Hold ⌥ to place freely.",
+        "Snap to Grid": "Boxes and drawings line up on an invisible grid as you move them — and so do the tables and notes inside DBML diagrams. Hold ⌥ to place freely.",
         // Table
         "Insert Above": "Adds rows above the selected cells (as many as are selected).",
         "Insert Below": "Adds rows below the selected cells.",

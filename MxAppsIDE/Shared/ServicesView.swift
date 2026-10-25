@@ -1,19 +1,19 @@
 //
 //  ServicesView.swift
-//  Shared by MxDataHUB, MxJobsWMS and MxPortMGR (MXcodeIDE/Shared)
+//  Shared by MxDataHUB, MxJobsMGR and MxAcctMGR (MxAppsIOS/Shared)
 //
 //  "Layer 3 Services": every service both apps use — running or not, its language and why, the use cases it
 //  serves and when to use them, its endpoints, how to start it, and the sample workflows built on it.
-//  Each app adds its own actions (MxJobsWMS: add a step, open a sample; MxDataHUB: open a workflow).
+//  Each app adds its own actions (MxJobsMGR: add a step, open a sample; MxDataHUB: open a workflow).
 //
 
 import AppKit
 import SwiftUI
 
 struct ServicesView: View {
-    /// App-specific buttons for a service (e.g. "Add Step" in MxJobsWMS).
+    /// App-specific buttons for a service (e.g. "Add Step" in MxJobsMGR).
     var serviceActions: (ServiceInfo, ServiceEndpoint?) -> AnyView = { _, _ in AnyView(EmptyView()) }
-    /// Opens a sample (MxJobsWMS: new jobspace; MxDataHUB: hand-off to MxJobsWMS).
+    /// Opens a sample (MxJobsMGR: new jobspace; MxDataHUB: hand-off to MxJobsMGR).
     var openSample: ((SampleInfo) -> Void)?
     var openSampleTitle = "Open Sample"
 
@@ -43,6 +43,8 @@ struct ServicesView: View {
                     }
                 }
                 .listStyle(.sidebar)
+                // Rows are picked, not their words (MxDataHUB makes its screens' text selectable).
+                .textSelection(.disabled)
                 Divider()
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
