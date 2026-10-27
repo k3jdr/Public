@@ -81,9 +81,12 @@ enum JobsHelp {
         if let issue { facts.append(issue == .error ? "has an error (see Checks)" : "has a warning (see Checks)") }
         let how = selected
             ? "The inspector on the right sets it up. ⌘\\ toggles a breakpoint, ⌘D duplicates, Delete removes it."
-            : "Click to select it and set it up in the inspector; drag to move it; drag its ● handle onto another step to link them. Right-click for breakpoint, disable, duplicate, delete."
+            : "Click to select it and set it up in the inspector; drag to move it; drag its ● handle onto another step to link them. Right-click for breakpoint, disable, Edit Step…, its link and hover text, duplicate, delete."
+        if node.link != nil { facts.append("has a link (rest the pointer for its hover card)") }
+        else if node.shownLink != nil { facts.append("shows its palette element's link") }
+        let notes = node.notes.trimmingCharacters(in: .whitespacesAndNewlines)
         return QuickHelpItem(title: "\(node.kind.title): \(node.title)",
-                             detail: (kindDetail[node.kind] ?? node.kind.summary) + "\n" + facts.joined(separator: " · ") + ". " + how,
+                             detail: (notes.isEmpty ? "" : notes + "\n") + (kindDetail[node.kind] ?? node.kind.summary) + "\n" + facts.joined(separator: " · ") + ". " + how,
                              symbol: node.kind.symbol)
     }
 
@@ -111,9 +114,21 @@ enum JobsHelp {
     ]
 
     static func paletteKind(_ kind: NodeKind) -> QuickHelpItem {
-        QuickHelpItem(title: kind.title,
-                      detail: (kindDetail[kind] ?? kind.summary) + "\nDrag it onto its lane on the canvas, or double-click to add it at the end of Layer \(kind.layer.rawValue).",
-                      symbol: kind.symbol)
+        let edits = PaletteEdits.shared
+        let own = edits.isEdited(kind) ? "Built in: \(kind.title) — \(kind.summary)\n" : ""
+        return QuickHelpItem(title: edits.title(kind),
+                             detail: (edits.isEdited(kind) ? edits.summary(kind) + "\n" + own : (kindDetail[kind] ?? kind.summary) + "\n")
+                                + "Drag it onto its lane on the canvas, or double-click to add it at the end of Layer \(kind.layer.rawValue). "
+                                + "Right-click to rename it (Edit Element…, or select it and press Return) or to "
+                                + (edits.link(.kind(kind)) == nil ? "add a link with hover text." : "edit its link; rest the pointer on it for the link's hover card."),
+                             symbol: kind.symbol)
+    }
+
+    static func paletteLayer(_ layer: Layer) -> QuickHelpItem {
+        QuickHelpItem(title: "Layer \(layer.rawValue) · \(layer.title)",
+                      detail: layer.subtitle + ". Right-click the header to "
+                        + (PaletteEdits.shared.link(.layer(layer)) == nil ? "add a link with hover text." : "edit its link; rest the pointer on it for the link's hover card."),
+                      symbol: "\(layer.rawValue).square")
     }
 
     static func paletteService(_ service: ServiceInfo, running: Bool) -> QuickHelpItem {
@@ -124,7 +139,7 @@ enum JobsHelp {
     }
 
     static let palette = QuickHelpItem(title: "Palette",
-                                       detail: "The steps you can add, by layer, and the shared Layer 3 services. Drag a step onto the canvas or double-click it; right-click a service for its endpoints.",
+                                       detail: "The steps you can add, by layer, and the shared Layer 3 services. Drag a step onto the canvas or double-click it; right-click a step to rename it or link it, a layer's header to link it, and a service for its endpoints.",
                                        symbol: "square.grid.2x2")
 
     // MARK: Inspector

@@ -18,13 +18,13 @@ enum Screen: String, CaseIterable, Identifiable {
     case myPortfolio, myBenchmark, myRisk, myImprove, myTrades, myAttribution
     case reportLibrary, morningBriefing, earningsCalendar, earningsDay, vix, compute, reportWalkthrough
     case whyOptimize, whyAttribution, activeVsPassive, samples
-    case securities, services
+    case spending, securities, services
 
     var id: String { rawValue }
 
     enum Group: String, CaseIterable {
         case accounts = "Banking", start = "Start Here", mine = "Investments", reports = "Knowledge Library",
-             library = "Data Library"
+             library = "Reporting"
 
         /// The sidebar's sections (Start Here's screens are in the Guide menu only).
         static let sidebar: [Group] = [.accounts, .mine, .reports, .library]
@@ -37,7 +37,7 @@ enum Screen: String, CaseIterable, Identifiable {
         case .myPortfolio, .myBenchmark, .myRisk, .myImprove, .myTrades, .myAttribution: .mine
         case .reportLibrary, .morningBriefing, .earningsCalendar, .earningsDay, .vix, .compute, .reportWalkthrough,
              .whyOptimize, .whyAttribution, .activeVsPassive, .samples: .reports
-        case .securities, .services: .library
+        case .spending, .securities, .services: .library
         }
     }
 
@@ -45,7 +45,7 @@ enum Screen: String, CaseIterable, Identifiable {
         switch self {
         case .checking: "Checking Accounts"
         case .cards: "Credit Card Accounts"
-        case .expenseLedgers: "Expense Accounts"
+        case .expenseLedgers: "Expense Ledgers"
         case .expenses: "Target Accounts"
         case .secureAccounts: "Secure Accounts"
         case .welcome: "Welcome"
@@ -66,7 +66,8 @@ enum Screen: String, CaseIterable, Identifiable {
         case .vix: "CBOE Volatility Index (VIX)"
         case .compute: "Compute Hyperscalers Tracking"
         case .reportWalkthrough: "Report Walkthrough"
-        case .securities: "Securities"
+        case .spending: "Spending Analysis"
+        case .securities: "SRM Table"
         case .samples: "Sample Portfolios"
         case .services: "Layer 3 Services"
         }
@@ -105,6 +106,7 @@ enum Screen: String, CaseIterable, Identifiable {
         case .vix: "waveform.path.ecg.rectangle"
         case .compute: "cpu"
         case .reportWalkthrough: "newspaper"
+        case .spending: "chart.pie"
         case .securities: "doc.text.magnifyingglass"
         case .samples: "square.grid.2x2"
         case .services: "server.rack"
@@ -201,7 +203,8 @@ final class PortStore {
             clearResults()
         }
     }
-    var engine: EngineChoice = .builtIn {
+    /// The Layer 3 services by default; Built-in when they aren't running (the toolbar's Engine).
+    var engine: EngineChoice = .services {
         didSet { clearResults() }
     }
 
